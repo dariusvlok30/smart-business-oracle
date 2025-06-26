@@ -38,11 +38,7 @@ export class OllamaService {
     try {
       console.log('Testing Ollama connection to:', this.config.endpoint);
       
-      // Simulate AI model connection test
-      const response = await fetch(`http://${this.config.endpoint}/api/tags`).catch(() => {
-        // Simulate successful connection for demo
-        return { ok: true, json: async () => ({ models: [] }) };
-      });
+      const response = await fetch(`http://${this.config.endpoint}/api/tags`);
 
       if (response.ok) {
         return {
@@ -63,184 +59,212 @@ export class OllamaService {
     } catch (error) {
       console.error('AI connection error:', error);
       return {
-        success: true, // Demo mode - always succeed
-        message: 'Connected to demo AI service',
-        details: { mode: 'demo' }
+        success: false,
+        message: 'AI model connection failed',
+        details: { error: error.message }
       };
     }
   }
 
   async generateInsights(tablesData: any[]): Promise<InsightData[]> {
     try {
-      console.log('Generating AI insights from data...');
+      console.log('Generating AI insights from real data...');
       
-      // Simulate AI-generated insights based on the data
-      const insights: InsightData[] = [
-        {
-          title: 'Revenue Trending Upward',
-          description: 'Sales revenue has increased by 15.3% compared to last month, driven by strong performance in electronics and sports categories.',
-          type: 'trend',
-          confidence: 0.92,
-          data: { change: 15.3, period: 'month' }
-        },
-        {
-          title: 'Low Stock Alert',
-          description: '23 products are running low on inventory (below 10 units). Consider restocking Nike and Adidas items as they show high demand.',
-          type: 'alert',
-          confidence: 0.98,
-          data: { lowStockCount: 23, criticalBrands: ['Nike', 'Adidas'] }
-        },
-        {
-          title: 'Customer Retention Opportunity',
-          description: '156 customers haven\'t made a purchase in the last 30 days. A targeted marketing campaign could re-engage these customers.',
-          type: 'opportunity',
-          confidence: 0.87,
-          data: { inactiveCustomers: 156, period: 30 }
-        },
-        {
-          title: 'Performance Summary',
-          description: 'Overall business performance is strong with R 2,456,789 in total sales this month across 4 main product categories.',
-          type: 'summary',
-          confidence: 0.95,
-          data: { totalSales: 2456789, categories: 4 }
-        }
-      ];
+      const prompt = this.createInsightPrompt(tablesData);
+      
+      const response = await fetch(`http://${this.config.endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.config.model,
+          prompt,
+          stream: false
+        })
+      });
 
-      return insights;
+      if (!response.ok) {
+        throw new Error('Failed to generate insights');
+      }
+
+      const result = await response.json();
+      return this.parseInsights(result.response, tablesData);
     } catch (error) {
       console.error('Error generating insights:', error);
-      throw new Error('Failed to generate AI insights');
+      return this.generateFallbackInsights(tablesData);
     }
   }
 
   async generateDashboards(tablesData: any[]): Promise<DashboardConfig[]> {
     try {
-      console.log('Generating intelligent dashboards...');
+      console.log('Generating intelligent dashboards from real data...');
       
-      // Simulate AI-generated dashboard configurations
-      const dashboards: DashboardConfig[] = [
-        {
-          title: 'Executive Overview',
-          description: 'High-level business performance metrics',
-          widgets: [
-            {
-              id: 'total-revenue',
-              type: 'metric',
-              title: 'Total Revenue',
-              data: { value: 2456789, change: 15.3, period: 'This Month' }
-            },
-            {
-              id: 'sales-trend',
-              type: 'chart',
-              title: 'Sales Trend',
-              chartType: 'line',
-              data: this.generateSalesTrendData()
-            },
-            {
-              id: 'category-performance',
-              type: 'chart',
-              title: 'Category Performance',
-              chartType: 'bar',
-              data: this.generateCategoryData()
-            },
-            {
-              id: 'top-products',
-              type: 'table',
-              title: 'Top Selling Products',
-              data: this.generateTopProductsData()
-            }
-          ]
-        },
-        {
-          title: 'Inventory Management',
-          description: 'Stock levels and inventory analytics',
-          widgets: [
-            {
-              id: 'stock-levels',
-              type: 'gauge',
-              title: 'Overall Stock Health',
-              data: { value: 78, max: 100, status: 'good' }
-            },
-            {
-              id: 'low-stock',
-              type: 'table',
-              title: 'Low Stock Items',
-              data: this.generateLowStockData()
-            }
-          ]
-        }
-      ];
+      const prompt = this.createDashboardPrompt(tablesData);
+      
+      const response = await fetch(`http://${this.config.endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.config.model,
+          prompt,
+          stream: false
+        })
+      });
 
-      return dashboards;
+      if (!response.ok) {
+        throw new Error('Failed to generate dashboards');
+      }
+
+      const result = await response.json();
+      return this.parseDashboards(result.response, tablesData);
     } catch (error) {
       console.error('Error generating dashboards:', error);
-      throw new Error('Failed to generate dashboards');
+      return this.generateFallbackDashboards(tablesData);
     }
   }
 
-  private generateSalesTrendData() {
-    const data = [];
-    const today = new Date();
-    
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      data.push({
-        date: date.toISOString().split('T')[0],
-        sales: Math.round((Math.random() * 50000 + 30000) * 100) / 100,
-        revenue: Math.round((Math.random() * 200000 + 100000) * 100) / 100
-      });
+  private createInsightPrompt(tablesData: any[]): string {
+    const dataOverview = tablesData.map(table => ({
+      name: table.name,
+      rowCount: table.rowCount,
+      columns: table.columns.map(col => col.name),
+      sampleData: table.sampleData?.slice(0, 3)
+    }));
+
+    return `
+Analyze this business database and generate actionable insights:
+
+Database Overview:
+${JSON.stringify(dataOverview, null, 2)}
+
+Generate 4 key business insights in JSON format:
+[
+  {
+    "title": "insight title",
+    "description": "detailed description with specific numbers",
+    "type": "trend|alert|opportunity|summary",
+    "confidence": 0.9
+  }
+]
+
+Focus on:
+- Revenue and sales patterns
+- Inventory levels and stock alerts
+- Customer behavior and retention
+- Performance trends and opportunities
+`;
+  }
+
+  private createDashboardPrompt(tablesData: any[]): string {
+    const tableStructure = tablesData.map(table => ({
+      name: table.name,
+      columns: table.columns,
+      rowCount: table.rowCount
+    }));
+
+    return `
+Create dashboard configurations for this database schema:
+
+${JSON.stringify(tableStructure, null, 2)}
+
+Generate dashboard configs in JSON format that use REAL data from these tables.
+Focus on creating meaningful business dashboards with appropriate chart types based on the actual data structure.
+
+Return format:
+[
+  {
+    "title": "Dashboard Name",
+    "description": "Dashboard description",
+    "widgets": [
+      {
+        "id": "unique-id",
+        "type": "metric|chart|table|gauge",
+        "title": "Widget Title",
+        "chartType": "bar|line|pie",
+        "dataSource": {
+          "table": "table_name",
+          "columns": ["col1", "col2"],
+          "aggregation": "SUM|COUNT|AVG"
+        }
+      }
+    ]
+  }
+]
+`;
+  }
+
+  private parseInsights(aiResponse: string, tablesData: any[]): InsightData[] {
+    try {
+      const insights = JSON.parse(aiResponse);
+      return Array.isArray(insights) ? insights : [];
+    } catch (error) {
+      return this.generateFallbackInsights(tablesData);
     }
-    
-    return data;
   }
 
-  private generateCategoryData() {
-    return [
-      { category: 'Electronics', sales: 856432, percentage: 34.8 },
-      { category: 'Clothing', sales: 645123, percentage: 26.2 },
-      { category: 'Sports', sales: 523891, percentage: 21.3 },
-      { category: 'Home', sales: 431343, percentage: 17.7 }
-    ];
+  private parseDashboards(aiResponse: string, tablesData: any[]): DashboardConfig[] {
+    try {
+      const dashboards = JSON.parse(aiResponse);
+      return Array.isArray(dashboards) ? dashboards : [];
+    } catch (error) {
+      return this.generateFallbackDashboards(tablesData);
+    }
   }
 
-  private generateTopProductsData() {
-    return [
-      { rank: 1, product: 'Nike Air Max 270', sales: 145, revenue: 24650 },
-      { rank: 2, product: 'Adidas Ultraboost 22', sales: 132, revenue: 23760 },
-      { rank: 3, product: 'Samsung Galaxy Buds', sales: 128, revenue: 19200 },
-      { rank: 4, product: 'Apple iPhone Case', sales: 115, revenue: 11500 },
-      { rank: 5, product: 'Puma Running Shoes', sales: 98, revenue: 14700 }
-    ];
+  private generateFallbackInsights(tablesData: any[]): InsightData[] {
+    if (!tablesData || tablesData.length === 0) {
+      return [{
+        title: 'No Data Available',
+        description: 'No database tables found or accessible',
+        type: 'alert',
+        confidence: 1.0
+      }];
+    }
+
+    return tablesData.slice(0, 4).map((table, index) => ({
+      title: `${table.name} Analysis`,
+      description: `Found ${table.rowCount?.toLocaleString() || 0} records in ${table.name} table with ${table.columns?.length || 0} columns`,
+      type: index % 2 === 0 ? 'summary' : 'trend',
+      confidence: 0.8
+    }));
   }
 
-  private generateLowStockData() {
-    return [
-      { product: 'Nike Air Force 1', current: 8, minimum: 20, status: 'critical' },
-      { product: 'Adidas Stan Smith', current: 5, minimum: 15, status: 'critical' },
-      { product: 'Apple Watch Band', current: 12, minimum: 25, status: 'warning' },
-      { product: 'Samsung Phone Case', current: 7, minimum: 20, status: 'critical' },
-      { product: 'Puma T-Shirt', current: 15, minimum: 30, status: 'warning' }
-    ];
+  private generateFallbackDashboards(tablesData: any[]): DashboardConfig[] {
+    if (!tablesData || tablesData.length === 0) {
+      return [];
+    }
+
+    return [{
+      title: 'Data Overview',
+      description: 'Overview of available database tables',
+      widgets: tablesData.map((table, index) => ({
+        id: `table-${index}`,
+        type: 'table',
+        title: table.name,
+        data: table.sampleData || []
+      }))
+    }];
   }
 
   async generateQuery(naturalLanguage: string): Promise<string> {
     try {
       console.log('Converting natural language to SQL:', naturalLanguage);
       
-      // Simulate natural language to SQL conversion
-      // In real implementation, this would use the Ollama model
-      const mockQueries: { [key: string]: string } = {
-        'top selling products': 'SELECT p.name, SUM(s.quantity) as total_sold FROM products p JOIN sales s ON p.id = s.product_id GROUP BY p.id ORDER BY total_sold DESC LIMIT 10',
-        'monthly revenue': 'SELECT DATE_FORMAT(sale_date, "%Y-%m") as month, SUM(total_amount) as revenue FROM sales GROUP BY month ORDER BY month DESC',
-        'low stock items': 'SELECT name, stock_quantity FROM products WHERE stock_quantity < 20 ORDER BY stock_quantity ASC'
-      };
+      const response = await fetch(`http://${this.config.endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.config.model,
+          prompt: `Convert this to SQL: ${naturalLanguage}`,
+          stream: false
+        })
+      });
 
-      const query = mockQueries[naturalLanguage.toLowerCase()] || 
-                   'SELECT * FROM products LIMIT 10';
-      
-      return query;
+      if (!response.ok) {
+        throw new Error('Failed to generate query');
+      }
+
+      const result = await response.json();
+      return result.response || 'SELECT 1';
     } catch (error) {
       console.error('Error generating query:', error);
       throw new Error('Failed to generate SQL query');

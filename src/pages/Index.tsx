@@ -4,9 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { DatabaseService } from '@/services/DatabaseService';
 import { OllamaService } from '@/services/OllamaService';
@@ -62,12 +59,12 @@ const Index = () => {
           setConnectionStatus('connected');
           toast({
             title: "Connection Successful",
-            description: "Database and AI services are ready. Discovering schema...",
+            description: "Database and AI services are ready. Discovering real data...",
           });
           
-          // Auto-discover database schema
+          // Auto-discover actual database schema
           const schema = await databaseService.discoverSchema();
-          console.log('Discovered schema:', schema);
+          console.log('Discovered real schema:', schema);
           
           return { 
             database: dbStatus, 
@@ -100,26 +97,30 @@ const Index = () => {
     retryDelay: 2000
   });
 
-  // Fetch dashboard data once connected
+  // Fetch real dashboard data once connected
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
     queryKey: ['dashboard-data'],
     queryFn: async () => {
       if (!isConnected) return null;
       
       try {
-        console.log('Fetching dashboard data...');
+        console.log('Fetching real dashboard data...');
         
-        // Get all available tables and their data
+        // Get all available tables and their actual data
         const tablesData = await databaseService.getAllTablesData();
-        console.log('Tables data:', tablesData);
+        console.log('Real tables data:', tablesData);
         
-        // Generate AI insights
+        if (!tablesData || tablesData.length === 0) {
+          throw new Error('No data found in database');
+        }
+        
+        // Generate AI insights from real data
         const insights = await ollamaService.generateInsights(tablesData);
-        console.log('Generated insights:', insights);
+        console.log('Generated insights from real data:', insights);
         
-        // Create automated dashboards
+        // Create automated dashboards from real data
         const dashboards = await ollamaService.generateDashboards(tablesData);
-        console.log('Generated dashboards:', dashboards);
+        console.log('Generated dashboards from real data:', dashboards);
         
         return {
           tables: tablesData,
@@ -131,7 +132,7 @@ const Index = () => {
         console.error('Dashboard data error:', error);
         toast({
           title: "Data Loading Error",
-          description: "Failed to load dashboard data. Retrying...",
+          description: "Failed to load real data from database. Check database connection.",
           variant: "destructive"
         });
         throw error;
@@ -201,14 +202,14 @@ const Index = () => {
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl text-gray-800">System Configuration</CardTitle>
                   <CardDescription>
-                    Configure your database and AI connections for automated BI generation
+                    Configure your database and AI connections for automated BI generation from real data
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isConnecting ? (
                     <div className="flex flex-col items-center space-y-4 py-8">
                       <LoadingSpinner size="lg" />
-                      <p className="text-gray-600">Testing connections and discovering schema...</p>
+                      <p className="text-gray-600">Testing connections and discovering real data schema...</p>
                     </div>
                   ) : (
                     <ConnectionForm 
@@ -245,7 +246,7 @@ const Index = () => {
                 {isDashboardLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <LoadingSpinner size="lg" />
-                    <span className="ml-4 text-white">Generating intelligent dashboards...</span>
+                    <span className="ml-4 text-white">Generating intelligent dashboards from real data...</span>
                   </div>
                 ) : (
                   <>
@@ -266,7 +267,7 @@ const Index = () => {
                       <CardHeader>
                         <CardTitle className="text-gray-800">{table.name}</CardTitle>
                         <CardDescription>
-                          {table.rowCount?.toLocaleString()} records • Last updated: {new Date().toLocaleTimeString()}
+                          {table.rowCount?.toLocaleString()} records • Real-time data from {connectionConfig.database.database}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
